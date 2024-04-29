@@ -1,88 +1,69 @@
 import torch
 import torch.nn as nn
-import numpy as np
+import torch.optim as optim
 import pandas as pd
-
-EMBED_DIMENSION = 50
-EMBED_MAX_NORM = 1
-class Net_CBOW(nn.Module):
-    def __init__(self, vocab_size: int):
-        super(Net_CBOW, self).__init__()
-        self.embeddings = nn.Embedding(
-            num_embeddings=vocab_size,
-            embedding_dim=EMBED_DIMENSION,
-            max_norm=EMBED_MAX_NORM,
-        )
-        self.linear = nn.Linear(
-            in_features=EMBED_DIMENSION,
-            out_features=vocab_size,
-        )
-    def forward(self, inputs_):
-        x = self.embeddings(inputs_)
-        x = x.mean(axis=0)
-        x = self.linear(x)
-        return x
-    
-version = "april22_3000datalim_20epoch"
-
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-net = torch.load(f"model/model_{version}.pt", map_location=device)
-vocab = torch.load(f"vocab/vocab_{version}.pt")
-embeddings_df = torch.load(f"embeddings/emb_{version}.pt")
-
-def embed(word):
-    if word not in vocab:
-        v = embeddings_df.loc["<unk>"]
-    else:
-        v = embeddings_df.loc[word]
-    v = np.array(v)
-    return v
-
-embeddings_norm = torch.Tensor(np.array(embeddings_df))
-def lookup_id(word, vocab=vocab):
-    if word not in vocab:
-        return vocab["<unk>"]
-    return vocab[word]
-def lookup_token(word_id, vocab=vocab):
-    for word in vocab:
-        if vocab[word] == word_id:
-            return word
-    return None
-def get_top_similar(word_vec, embeddings_norm = embeddings_norm, topN: int = 10):
-    word_vec = np.reshape(word_vec, (len(word_vec), 1))
-    dists = np.matmul(embeddings_norm, word_vec).flatten()
-    topN_ids = np.argsort(-dists)[1 : topN + 1]
-
-    topN_dict = {}
-    for sim_word_id in topN_ids:
-        sim_word = "<unk>"
-        for k in vocab:
-            if vocab[k] == sim_word_id:
-                sim_word = k
-                break
-        topN_dict[sim_word] = dists[sim_word_id]
-    return topN_dict
-
-# print(get_top_similar(embed("one")))
+import numpy as np
+import random
 
 SCANNING_WINDOW = 4
-
-sentence = "I like to move on a run . <unk> <unk> <unk> <unk> <unk>"
-sentence = [vocab[item.lower()] for item in sentence.split(" ")]
-print(sentence)
+#maybe need to split into paragraphs b/c different topics...
+#returns context, middle word
 def get_data(index, window, data):
     return list(data[index-window:index])+list(data[index+1:index+window+1]), data[index]
-index = 8
-for i in range(10):
-    context, target = get_data(i+index, SCANNING_WINDOW, sentence)
-    print("Target: "+str(target))
-    predicted = net(torch.tensor(context))
-    max_j = 0
-    for j in range(len(predicted)):
-        if predicted[j] > predicted[max_j]:
-            max_j = j
-    pred_word = lookup_token(max_j)
-    print(pred_word)
-    sentence.insert(index+i, max_j)
-print([lookup_token(i) for i in sentence])
-print(vocab["<unk>"])
+
+folder = "training_data/"
+version1 = "_data_"
+version2 = "_wt103_window4.pt"
+x_test = torch.load(f"{folder}test{version1}x{version2}")
+y_test = torch.load(f"{folder}test{version1}y{version2}")
+x_train = torch.load(f"{folder}train{version1}x{version2}")
+len(x_train) + len(x_test)
+y_train = torch.load(f"{folder}train{version1}y{version2}")
+len(y_train) + len(y_test)
+
+version = "april26_WT103_nodatalim_20epoch_64dim"
+vocab = torch.load(f"saves/vocab_{version}.pt")
+
+from net import Net_CBOW
+
+EMBED_DIMENSION = 64
+net = Net_CBOW(len(vocab), EMBED_DIMENSION)
+params = list(net.parameters())
+net.zero_grad()
+criterion = nn.CrossEntropyLoss()
+losses = []
+
+NUM_EPOCHS = 20
+
+optimizer = optim.Adam(net.parameters(), lr=0.025)
+scheduler = optim.lr_scheduler.LinearLR(optimizer, 1.0, 0.0, total_iters=NUM_EPOCHS)
+
+print("RUN        " + ("•••••••••|"*10))
+indices = list(range(len(x_train)))
+for epoch in range(5):
+    print("RUN", str(epoch+1)+"/"+str(NUM_EPOCHS), end=": ")
+    for i in range(len(x_train)):
+        if i == len(x_train)//100000:
+            print("!")
+        if i % (len(x_train)//100) == 0:
+            print("•", end="")
+        index = indices[i]
+        context, target = x_train[index], y_train[index]
+        optimizer.zero_grad()   # zero the gradient buffers
+        output = net(torch.tensor(context))
+        loss = criterion(output, torch.tensor(target))
+        loss.backward()
+        optimizer.step()    # Does the update
+
+    for context, target in zip(x_test, y_test):
+        output = net(torch.tensor(context))
+        losses.append(criterion(output, torch.tensor(target)).item())
+    print(scheduler.get_last_lr())
+
+    scheduler.step()
+    print()
+    random.shuffle(indices)
+
+version = "april26_WT103_nodatalim_20epoch_64dim"
+torch.save(net, f"saves/model_{version}.pt")
+# torch.save(vocab, f"saves/vocab_{version}.pt")
