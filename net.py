@@ -25,7 +25,7 @@ class Net_CBOW(nn.Module):
     
 def train_model(folder, version, x_train, y_train, x_test, y_test, net, criterion, NUM_EPOCHS):
     net.zero_grad()
-    optimizer = optim.Adam(net.parameters(), lr=0.025).to(device)
+    optimizer = optim.Adam(net.parameters(), lr=0.025)
     scheduler = optim.lr_scheduler.LinearLR(optimizer, 1.0, 0.0, total_iters=NUM_EPOCHS)
     torch.save(net, f"saves/{folder}/model_{version}_init.pt")
     print("RUN       " + ("•••••••••|"*10))
@@ -53,28 +53,28 @@ def train_model(folder, version, x_train, y_train, x_test, y_test, net, criterio
         random.shuffle(indices)
         torch.save(net, f"saves/{folder}/model_{version}_epoch{str(epoch)}.pt")
     return net
-print("RUN       " + ("•••••••••|"*10))
-indices = list(range(len(x_train)))
-torch.save(net, f"saves/apr28epochs/model_{version}_init.pt")
-for epoch in range(NUM_EPOCHS):
-    print("RUN", str(epoch+1)+"/"+str(NUM_EPOCHS), end=": ")
-    for i in range(len(x_train)):
-        if i % (len(x_train)//100) == 0:
-            print("•", end="")
-        index = indices[i]
-        context, target = x_train[index*batch_size:(index+1)*batch_size], y_train[index]
-        optimizer.zero_grad()   # zero the gradient buffers
-        output = net(context)
-        loss = criterion(output, target)
-        loss.backward()
-        optimizer.step()    # Does the update
+# print("RUN       " + ("•••••••••|"*10))
+# indices = list(range(len(x_train)))
+# torch.save(net, f"saves/apr28epochs/model_{version}_init.pt")
+# for epoch in range(NUM_EPOCHS):
+#     print("RUN", str(epoch+1)+"/"+str(NUM_EPOCHS), end=": ")
+#     for i in range(len(x_train)):
+#         if i % (len(x_train)//100) == 0:
+#             print("•", end="")
+#         index = indices[i]
+#         context, target = x_train[index*batch_size:(index+1)*batch_size], y_train[index]
+#         optimizer.zero_grad()   # zero the gradient buffers
+#         output = net(context)
+#         loss = criterion(output, target)
+#         loss.backward()
+#         optimizer.step()    # Does the update
 
-    for context, target in zip(x_test, y_test):
-        output = net(torch.tensor(context, device=device))
-        losses.append(criterion(output, torch.tensor(target, device=device)).item())
-    print(scheduler.get_last_lr())
+#     for context, target in zip(x_test, y_test):
+#         output = net(torch.tensor(context, device=device))
+#         losses.append(criterion(output, torch.tensor(target, device=device)).item())
+#     print(scheduler.get_last_lr())
 
-    scheduler.step()
-    print()
-    random.shuffle(indices)
-    torch.save(net, f"saves/apr28epochs/model_{version}_epoch{str(epoch)}.pt")
+#     scheduler.step()
+#     print()
+#     random.shuffle(indices)
+#     torch.save(net, f"saves/apr28epochs/model_{version}_epoch{str(epoch)}.pt")
