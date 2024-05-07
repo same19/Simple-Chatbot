@@ -10,6 +10,7 @@ import pandas as pd
 from sklearn.manifold import TSNE
 import plotly.graph_objects as go
 import spacy
+import plotly.io as pio
 
 # Load English tokenizer, tagger, parser and NER
 tokenizer = spacy.load("en_core_web_sm").tokenizer
@@ -17,7 +18,7 @@ tokenizer = spacy.load("en_core_web_sm").tokenizer
 # Tkinter implementation by ChatGPT
 
 vocab = torch.load("saves/vocab_may1_WT2_transformer_min25f.pt")
-transformer = torch.load("saves/model_transformer_may5_1130pm.pt")
+transformer = torch.load("saves/model_transformer_may5_0100am.pt")
 
 # get first layer of the model
 embeddings = list(transformer.input_emb.parameters())[0]
@@ -103,28 +104,36 @@ def add(worda: tuple, wordb: tuple):
 embeddings_df_tsne = torch.load("saves/plot_emb_transformer_may5_1130pm.pt")
 
 def generate_word_plot(highlighted_words):
-    highlight = pd.Series(embeddings_df_tsne.index.str in highlighted_words)
-    print(highlight)
+    print(pd.Series(embeddings_df_tsne.index))
+    highlight = np.array(pd.Series(embeddings_df_tsne.index).isin(highlighted_words))
+    print(pd.Series(highlight).value_counts())
+    
+    embeddings_df_temp = embeddings_df_tsne
+    embeddings_df_temp['highlight'] = highlight
+    embeddings_df_temp = embeddings_df_temp.sort_values(by='highlight', ascending=True)
+    highlight = embeddings_df_temp['highlight']
+
     color = np.where(highlight, "red", "black")
     size = np.where(highlight, 30, 10)
+
     fig = go.Figure()
     fig.add_trace(
         go.Scatter(
-            x=embeddings_df_tsne[0],
-            y=embeddings_df_tsne[1],
+            x=embeddings_df_temp[0],
+            y=embeddings_df_temp[1],
             mode="text",
-            text=embeddings_df_tsne.index,
+            text=embeddings_df_temp.index,
             textposition="middle center",
-            textfont=dict(color=color),
-
+            textfont=dict(color=color, size=size),
         )
     )
     fig.update_traces(marker=dict(size=size))
-    f = "plot.svg"
-    fig.show()
-    fig.write_image(f)
+    f = "plot.png"
+    # fig.show()
+    # fig.write_image(f)
+    pio.write_image(fig, 'plot.png', engine='auto')
     return f
-# generate_word_plot(["the", "paralympic", "wind"])
+generate_word_plot(["the", "paralympic", "wind"])
 
 
 analogy("mother", "woman", "father", include_inputs=False) #man
@@ -137,9 +146,9 @@ analogy("2001", "2002", "2005", include_inputs=False) #2006
 print()
 analogy("1", "3", "4", include_inputs=False) #6
 print()
-analogy("bright", "yellow", "dark", include_inputs=False) #grey
+analogy("bright", "yellow", "dark", include_inputs=False) #brown
 print()
-analogy("bright", "dark", "cold", include_inputs=False)
+analogy("bright", "dark", "cold", include_inputs=False) #hot
 # print(multiply(mathify("cold"),-1)[1]) #bright
 
 # Get a list of the probability of each word in the dictionary
