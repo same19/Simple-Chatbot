@@ -11,6 +11,9 @@ from sklearn.manifold import TSNE
 import plotly.graph_objects as go
 import spacy
 import plotly.io as pio
+import kaleido
+from PIL import Image, ImageTk
+import time
 
 # Load English tokenizer, tagger, parser and NER
 tokenizer = spacy.load("en_core_web_sm").tokenizer
@@ -100,13 +103,10 @@ def add(worda: tuple, wordb: tuple):
 # embeddings_df_tsne.index = vocab.keys()
 
 # torch.save(embeddings_df_tsne, "saves/plot_emb_transformer_may5_1130pm.pt")
-
 embeddings_df_tsne = torch.load("saves/plot_emb_transformer_may5_1130pm.pt")
 
 def generate_word_plot(highlighted_words):
-    print(pd.Series(embeddings_df_tsne.index))
     highlight = np.array(pd.Series(embeddings_df_tsne.index).isin(highlighted_words))
-    print(pd.Series(highlight).value_counts())
     
     embeddings_df_temp = embeddings_df_tsne
     embeddings_df_temp['highlight'] = highlight
@@ -129,26 +129,23 @@ def generate_word_plot(highlighted_words):
     )
     fig.update_traces(marker=dict(size=size))
     f = "plot.png"
-    # fig.show()
-    # fig.write_image(f)
-    pio.write_image(fig, 'plot.png', engine='auto')
+    pio.write_image(fig, 'plot.png', engine='kaleido', scale=5.0)
     return f
-generate_word_plot(["the", "paralympic", "wind"])
+generate_word_plot(["first", "game", "film", '"', "second"])
 
-
-analogy("mother", "woman", "father", include_inputs=False) #man
-print()
-analogy("kingdom", "king", "empire", include_inputs=False) #emperor
-print()
-analogy("2001", "1", "2002", include_inputs=False) #2
-print()
-analogy("2001", "2002", "2005", include_inputs=False) #2006
-print()
-analogy("1", "3", "4", include_inputs=False) #6
-print()
-analogy("bright", "yellow", "dark", include_inputs=False) #brown
-print()
-analogy("bright", "dark", "cold", include_inputs=False) #hot
+# analogy("mother", "woman", "father", include_inputs=False) #man
+# print()
+# analogy("kingdom", "king", "empire", include_inputs=False) #emperor
+# print()
+# analogy("2001", "1", "2002", include_inputs=False) #2
+# print()
+# analogy("2001", "2002", "2005", include_inputs=False) #2006
+# print()
+# analogy("1", "3", "4", include_inputs=False) #6
+# print()
+# analogy("bright", "yellow", "dark", include_inputs=False) #brown
+# print()
+# analogy("bright", "dark", "cold", include_inputs=False) #hot
 # print(multiply(mathify("cold"),-1)[1]) #bright
 
 # Get a list of the probability of each word in the dictionary
@@ -219,29 +216,73 @@ def format_sequence(l):
         count = 1
     return s
 
-# # Return the top five words based on the probabilities list
-# def pick_top_5_words(probabilities):
-#     words = ["hello", "the", "dog", "happy", "is", "sad"]
-#     indexes = get_top_5_probability_indexes(probabilities)
-#     return [words[index] for index in indexes]
+
+class ZoomableImageFrame(tk.Frame):
+    def __init__(self, master, image_path, *args, **kwargs):
+        tk.Frame.__init__(self, master, *args, **kwargs)
+        self.canvas = tk.Canvas(self)
+        self.canvas.pack(fill=tk.BOTH, expand=tk.YES)
+
+        self.init_size = (500,300)
+        self.image = Image.open(image_path).resize(self.init_size)
+        self.image_tk = ImageTk.PhotoImage(self.image)
+        self.image_id = self.canvas.create_image(0, 0, anchor=tk.NW, image=self.image_tk)
+
+        self.canvas.bind("<MouseWheel>", self.zoom)
+        self.canvas.bind("<ButtonPress-1>", self.on_button_press)
+        self.canvas.bind("<B1-Motion>", self.on_move)
+
+        self.start_x = None
+        self.start_y = None
+        self.zoom_level = 1.0
+
+    def zoom(self, event):
+        factor = 1.1 if event.delta > 0 else 0.9
+        self.zoom_level *= factor
+        x = self.canvas.canvasx(event.x)
+        y = self.canvas.canvasy(event.y)
+        bbox = self.canvas.bbox(tk.ALL)
+        center_x = (bbox[0] + bbox[2]) / 2
+        center_y = (bbox[1] + bbox[3]) / 2
+        dx = x - bbox[0]
+        dy = y - bbox[1]
+        new_width = int(self.image.width * self.zoom_level)
+        new_height = int(self.image.height * self.zoom_level)
+        resized_image = self.image.resize((new_width, new_height))
+        self.image_tk = ImageTk.PhotoImage(resized_image)
+        self.canvas.itemconfig(self.image_id, image=self.image_tk)
+        self.canvas.move(tk.ALL, -int(dx*(factor-1)), -int(dy*(factor-1)))
+        # self.canvas.scan_dragto(int(center_x - dx * factor), int(center_y - dy * factor))
+
+    def on_button_press(self, event):
+        self.start_x = event.x
+        self.start_y = event.y
+
+    def on_move(self, event):
+        if self.start_x is not None and self.start_y is not None:
+            delta_x = event.x - self.start_x
+            delta_y = event.y - self.start_y
+            self.canvas.move(tk.ALL, delta_x, delta_y)
+            self.start_x = event.x
+            self.start_y = event.y
+
 
 # Create the main application window
 class Application(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("LLM Interface")
-        self.geometry("1000x300")
-        # self.configure(bg="#121212")  # Setting background color to dark gray
+        self.geometry("1100x650")
 
         self.sequence = ["The"]
         self.create_widgets()
 
     def create_widgets(self):
         self.label = ttk.Label(self, text="Select a word:", font=("Comic Sans", 20))  # Setting text color to white
-        self.label.pack(pady=20)
+        self.label.pack(pady=(30,10))
 
         self.word_buttons_frame = ttk.Frame(self)  # Setting background color to dark gray for frame #, bg="#121212"
-        self.word_buttons_frame.pack(pady=20)
+        self.word_buttons_frame.pack(pady=(20,20))
         
 
         self.label_seq = tk.Text(self, font=("Arial", 14), width=100, height=3, wrap=tk.WORD, highlightcolor=self.cget("bg"))  # Using Entry widget instead of Label
@@ -251,13 +292,18 @@ class Application(tk.Tk):
         self.label_seq.bind("<FocusIn>", self.on_text_focus_in)
         self.label_seq.bind("<FocusOut>", self.on_text_focus_out)
 
-        update_button = ttk.Button(self, text="Reload Choices", command=self.update_sequence)
-        update_button.pack(pady=(0,20))
-       
-        # tokenizer(tokens)
-        #[str(w) for w in tokens]
+        self.plot_button = ttk.Button(self, text="Regenerate Plot", command=self.generate_new_plot)
+        self.plot_button.pack(pady=(0,20))
 
+        self.plot_frame = ttk.Frame(self, height=400)  # Setting background color to dark gray for frame #, bg="#121212"
+        self.plot_frame.pack(pady=(0,0))
+        # image_frame = ZoomableImageFrame(self, "plot.png")
+        # image_frame.pack()#fill=tk.BOTH, expand=tk.YES)
         self.update_words()
+
+        self.generate_new_plot(first_time=True)
+
+        
 
     def on_text_focus_in(self, event):
         self.label_seq.config(highlightbackground="white")  # Change highlight color to white when focused
@@ -265,15 +311,31 @@ class Application(tk.Tk):
     def on_text_focus_out(self, event):
         self.label_seq.config(highlightbackground=self.cget("bg"))  # Restore default highlight color when focus is lost
 
+    def generate_new_plot(self, first_time = False):
+        if first_time:
+            self.tk_image = ImageTk.PhotoImage(Image.open("plot.png").resize((485, 350)))
+            print("saved to tk_image")
+            self.img_label = tk.Label(self.plot_frame, image=self.tk_image)
+            print("labeled")
+            self.img_label.pack(pady=20)
+            print("packed")
+        else:
+            generate_word_plot(self.words)
+            # print("done generating plot")
+            tk_image = ImageTk.PhotoImage(Image.open("plot.png").resize((485, 350)))  # Resize image if needed
+            # print("saved to tk_image")
+            self.img_label.config(image=tk_image)  # Update existing Label widget's image
+            self.img_label.image = tk_image  # Keep a reference to avoid garbage collection
+            # print("updated image")
+
     def update_sequence(self, event=None):
-        
         new_sequence = self.label_seq.get("1.0", tk.END).strip()  # Get the text from the entry widget
         self.sequence = [str(w) for w in tokenizer(new_sequence)]  # Split the text into a list of words
         self.update_words()
 
     def update_words(self):
         words, probs = get_probabilities(self.sequence, 5, False)
-
+        self.words = words
         # Clear previous buttons
         for widget in self.word_buttons_frame.winfo_children():
             widget.destroy()
@@ -283,6 +345,8 @@ class Application(tk.Tk):
             btn = ttk.Button(self.word_buttons_frame, text=display_word(word), command=lambda w=word: self.add_word(w), width=8+int(16*prob))  # Setting button color to a darker shade of gray #width=8
             btn.pack(side=tk.LEFT, padx=10)
 
+        update_button = ttk.Button(self.word_buttons_frame, text="Reload Choices", command=self.update_sequence)
+        update_button.pack(side=tk.LEFT, padx=10)
         # Add Exit button
         exit_btn = ttk.Button(self.word_buttons_frame, text="Exit", command=self.close_app)  # Setting button color to orange #bg="#FF5722",
         exit_btn.pack(side=tk.LEFT, padx=10)
@@ -303,5 +367,5 @@ class Application(tk.Tk):
 
 if __name__ == "__main__":
     app = Application()
-    sv_ttk.set_theme("dark")
+    sv_ttk.set_theme("light")
     app.mainloop()
