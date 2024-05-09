@@ -135,21 +135,6 @@ def generate_word_plot(highlighted_words):
     return f
 generate_word_plot(["first", "game", "film", '"', "second"])
 
-analogy("mother", "woman", "father", include_inputs=False) #man
-print()
-analogy("kingdom", "king", "empire", include_inputs=False) #emperor
-print()
-analogy("2001", "1", "2002", include_inputs=False) #2
-print()
-analogy("2001", "2002", "2005", include_inputs=False) #2006
-print()
-analogy("1", "3", "4", include_inputs=False) #6
-print()
-analogy("bright", "yellow", "dark", include_inputs=False) #brown
-print()
-analogy("bright", "dark", "cold", include_inputs=False) #hot
-print(multiply(mathify("cold"),2)[1]) #bright
-
 # Get a list of the probability of each word in the dictionary
 def get_probabilities(sequence, n=5, include_unk = True):
     with torch.no_grad():
