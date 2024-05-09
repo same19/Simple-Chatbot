@@ -1,3 +1,5 @@
+#Initial continous bag of words model and trainer function
+
 import torch.nn as nn
 import torch
 import torch.optim as optim
@@ -23,6 +25,9 @@ class Net_CBOW(nn.Module):
         x = self.linear(x)
         return x
     
+
+#Train a network with the following parameters.
+
 def train_model(folder, version, x_train, y_train, x_test, y_test, net, criterion, NUM_EPOCHS):
     net.zero_grad()
     optimizer = optim.Adam(net.parameters(), lr=0.025)
